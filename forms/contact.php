@@ -1,18 +1,28 @@
 <?php
 // contact.php
 
-// Set response header for JSON
+// Set the response header for JSON output
 header("Content-Type: application/json");
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // Initialize variables
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    // Initialize an errors array
     $errors = [];
-    $name = filter_var(trim($_POST["name"] ?? ""), FILTER_SANITIZE_STRING);
-    $email = filter_var(trim($_POST["email"] ?? ""), FILTER_SANITIZE_EMAIL);
-    $subject = filter_var(trim($_POST["subject"] ?? ""), FILTER_SANITIZE_STRING);
-    $message = filter_var(trim($_POST["message"] ?? ""), FILTER_SANITIZE_STRING);
 
-    // Validate each input
+    // Retrieve and trim inputs
+    $name    = trim($_POST["name"] ?? '');
+    $email   = trim($_POST["email"] ?? '');
+    $subject = trim($_POST["subject"] ?? '');
+    $message = trim($_POST["message"] ?? '');
+
+    // Sanitize string inputs using htmlspecialchars to avoid deprecated filters
+    $name    = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+    $subject = htmlspecialchars($subject, ENT_QUOTES, 'UTF-8');
+    $message = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+
+    // Sanitize the email address
+    $email = filter_var($email, FILTER_SANITIZE_EMAIL);
+
+    // Validate inputs
     if (empty($name)) {
         $errors[] = "Name is required.";
     }
@@ -26,33 +36,45 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $errors[] = "Message is required.";
     }
 
-    // If validation errors exist, return them as JSON
-    if ($errors) {
-        echo json_encode(["status" => "error", "message" => implode(" ", $errors)]);
+    // Return errors as JSON if any exist
+    if (!empty($errors)) {
+        echo json_encode([
+            "status"  => "error",
+            "message" => implode(" ", $errors)
+        ]);
         exit();
     }
 
-    // Set up email variables
-    $to = "your-email@example.com"; // Replace with your actual email
-    $email_subject = "New Contact Message: " . $subject;
-    $email_body = "Name: $name\n";
-    $email_body .= "Email: $email\n\n";
-    $email_body .= "Message:\n$message\n";
-    $headers = "From: $email\nReply-To: $email";
+    // Email configuration
+    $to            = "info@rocketnet.digital"; // Replace with your actual email address
+    $emailSubject  = "New Contact Message: " . $subject;
+    $emailBody     = "Name: {$name}\n";
+    $emailBody    .= "Email: {$email}\n\n";
+    $emailBody    .= "Message:\n{$message}\n";
+    $headers       = "From: {$email}\r\n";
+    $headers      .= "Reply-To: {$email}\r\n";
+    $headers      .= "Content-Type: text/plain; charset=UTF-8\r\n";
 
     // Attempt to send the email
-    $mail_sent = mail($to, $email_subject, $email_body, $headers);
-
-    if ($mail_sent) {
-        echo json_encode(["status" => "success", "message" => "Your message has been sent. Thank you!"]);
+    if (mail($to, $emailSubject, $emailBody, $headers)) {
+        echo json_encode([
+            "status"  => "success",
+            "message" => "Your message has been sent. Thank you!"
+        ]);
     } else {
-        // Log error to file for debugging
+        // Log error details for debugging
         error_log("Email sending failed. Data:\n" . print_r($_POST, true) . "\n", 3, "error_log.txt");
-        echo json_encode(["status" => "error", "message" => "Unable to send message. Please try again later."]);
+        echo json_encode([
+            "status"  => "error",
+            "message" => "Unable to send message. Please try again later."
+        ]);
     }
 } else {
-    // Return error for incorrect HTTP methods
+    // For non-POST requests, return a forbidden access message
     http_response_code(403);
-    echo json_encode(["status" => "error", "message" => "Access forbidden."]);
+    echo json_encode([
+        "status"  => "error",
+        "message" => "Access forbidden."
+    ]);
 }
 ?>
